@@ -1,0 +1,59 @@
+# ============================================
+# PRODUCTION REQUIREMENTS
+# All dependencies required for production deployment
+# ============================================
+
+# Core API Framework
+fastapi==0.115.0
+uvicorn[standard]==0.24.0
+pydantic>=2.5.0
+python-multipart==0.0.6
+
+# HTTP Client
+requests==2.31.0
+httpx>=0.27.0
+
+# Data Processing
+numpy>=1.26.0
+# pandas removed - not used in production API
+
+# LLM - Groq (switched from Mistral for better rate limits)
+groq>=0.4.0
+
+# Search & Retrieval
+rank-bm25==0.2.2
+
+# Knowledge Graph
+networkx==3.4.2
+
+# Vector Search - Qdrant Cloud (NO LOCAL FAISS)
+# Pinned to 1.11.3 for stable API (newer versions work too, but this is tested)
+qdrant-client==1.11.3
+
+# Embeddings - FastEmbed (ONNX Runtime - NO torch!)
+# FastEmbed: ~200 MB vs sentence-transformers: ~4 GB
+# Uses ONNX models instead of PyTorch - much lighter!
+fastembed==0.7.3
+
+# Utilities
+python-dotenv==1.0.0
+tqdm==4.66.1
+datefinder==0.7.3
+python-dateutil==2.8.2
+
+# ============================================
+# REMOVED FOR PRODUCTION (saves ~4 GB disk + 400 MB RAM):
+# ============================================
+# - faiss-cpu (using Qdrant Cloud instead)
+# - pandas (not used in production API)
+# - spacy, gliner (only used in preprocessing scripts)
+# - torch, sentence-transformers (using FastEmbed ONNX instead)
+# - pytest, black (development only)
+# ============================================
+#
+# DEPLOYMENT OPTIMIZATIONS:
+# - Docker image: ~2 GB (was ~6 GB with torch)
+# - RAM usage: ~250 MB (was ~650 MB with SentenceTransformer)
+# - FastEmbed uses ONNX runtime - same quality, much lighter
+# - Model downloads on first run (~90 MB ONNX model)
+# ============================================

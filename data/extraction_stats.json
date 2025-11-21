@@ -1,0 +1,26 @@
+{
+  "total_triples": 3247,
+  "unique_subjects": 247,
+  "unique_relationships": 7,
+  "relationship_distribution": {
+    "OWNS": 1638,
+    "PLANNING_TRIP_TO": 509,
+    "RENTED/BOOKED": 485,
+    "VISITED": 423,
+    "PREFERS": 147,
+    "FAVORITE": 41,
+    "ATTENDING_EVENT": 4
+  },
+  "top_subjects": {
+    "Thiago Monteiro": 262,
+    "Sophia Al-Farsi": 261,
+    "Lily O'Sullivan": 251,
+    "Fatima El-Tahir": 243,
+    "you": 237,
+    "Armand Dupont": 234,
+    "Layla Kawaguchi": 231,
+    "Hans M\u00fcller": 228,
+    "Amina Van Den Berg": 226,
+    "Vikram Desai": 225
+  }
+}

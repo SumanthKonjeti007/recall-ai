@@ -1,0 +1,63 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Data files - IMPORTANT: We need these for deployment!
+# Commenting out to include data files in deployment
+# data/*.json
+# data/*.pkl
+# data/*.npy
+# data/*.csv
+!data/.gitkeep
+
+# Only ignore large temporary files if any
+data/temp/
+data/*.tmp
+
+# Notebooks
+notebooks/*.ipynb
+.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Session files and backups
+*_SESSION_CHECKPOINT.md
+*_COMPLETION_CHECKPOINT.md
+static/*_backup.html
+static/index_checkpoint*.html
+static/index_material3*.html
+static/index_futuristic*.html
+static/index_light*.html
+static/index_chat*.html
