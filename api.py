@@ -175,9 +175,13 @@ async def log_requests(request: Request, call_next):
 
 @app.get("/", include_in_schema=False)
 async def root():
-    """
-    Serve the frontend HTML page
-    """
+    """Serve the main application"""
+    return FileResponse('static/app.html')
+
+
+@app.get("/welcome", include_in_schema=False)
+async def landing_page():
+    """Serve the landing page (optional)"""
     return FileResponse('static/index.html')
 
 
@@ -204,7 +208,7 @@ async def api_info():
     }
 
 
-@app.post("/api/query", response_model=AnswerResponse)
+@app.post("/ask", response_model=AnswerResponse)
 async def query_endpoint(request: QuestionRequest):
     """
     Submit a natural language query and receive an answer
