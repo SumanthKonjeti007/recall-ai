@@ -36,7 +36,7 @@ A fully functional member information lookup system that demonstrates advanced h
 **Validated Principles:**
 - Separation of retrieval and generation logic
 - Configurable embedding and LLM backends
-- Domain-independent query preprocessing
+- Query preprocessing patterns designed for generalization
 - Modular component design for future extensibility
 - Intelligent query classification and routing
 

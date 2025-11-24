@@ -1,5 +1,7 @@
 # Architecture Deep Dive
 
+This document traces query execution through the Phase 1 MVP implementation: a member information lookup system for a concierge service. The system answers questions about member preferences, travel plans, and service requests from communication data (messages, emails, notes).
+
 Detailed step-by-step walkthrough of query execution through the codebase.
 
 **Two Examples:**
