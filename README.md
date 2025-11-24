@@ -474,240 +474,45 @@ Open `http://localhost:8000` in your browser to access the interactive UI.
 
 ---
 
-## Adapting to Your Use Case
+## Future Directions
 
-This framework is designed with modular components that can be adapted to different data domains. The following steps outline how to apply this architecture to your own dataset.
+Phase 1 validated core architectural patterns with the member preference domain. Future development will focus on:
 
-### Step 1: Prepare Your Data
+**Strengthening Graph Relationships:**
+- Enhanced entity extraction and relationship modeling
+- Multi-hop reasoning capabilities
+- Dynamic relationship discovery from unstructured data
 
-Your data should be in JSON format with the following considerations:
+**Overcoming Current Limitations:**
+- Better handling of edge cases and ambiguous queries
+- Improved context window management for long conversations
+- Enhanced fallback strategies for insufficient data scenarios
 
-**Required Structure:**
-- Each record should have a unique identifier
-- Text fields that will be embedded for semantic search
-- Metadata fields for filtering (category, timestamp, user, etc.)
-- Optional: Entity fields for knowledge graph construction
+**Scalability Improvements:**
+- Horizontal scaling with distributed vector search
+- Intelligent caching strategies for frequent queries
+- Performance optimization for high-throughput scenarios
+- Support for larger datasets (millions of messages)
 
-**Example for Customer Support:**
-```json
-{
-  "ticket_id": "TICKET-12345",
-  "customer_id": "CUST-789",
-  "timestamp": "2024-03-15T10:30:00Z",
-  "message_text": "I'm having trouble logging into my account after password reset",
-  "category": "authentication",
-  "priority": "high",
-  "entities": {
-    "issues": ["login failure", "password reset"],
-    "products": ["web app"],
-    "urgency": "high"
-  }
-}
-```
+**Ease of Use:**
+- Simplified onboarding process
+- Configuration-driven setup reducing code changes
+- Domain templates for common use cases
+- CLI tools for automated bootstrapping
 
-**Example for E-commerce Product Search:**
-```json
-{
-  "product_id": "SKU-12345",
-  "product_name": "Wireless Headphones",
-  "description": "High-fidelity Bluetooth headphones with noise cancellation",
-  "category": "Electronics",
-  "price": 299.99,
-  "specifications": {
-    "battery_life": "30 hours",
-    "connectivity": "Bluetooth 5.0",
-    "weight": "250g"
-  },
-  "reviews_summary": "Excellent sound quality and comfort"
-}
-```
-
-### Step 2: Configure Data Preprocessing
-
-Modify preprocessing scripts to match your data structure:
-
-**Entity Extraction (`scripts/entity_extraction.py`):**
-- Define domain-specific entity types (e.g., product features, customer issues)
-- Customize LLM prompts for entity identification
-- Map entities to knowledge graph relationships
-
-**Text Chunking (`scripts/embeddings.py`):**
-- Determine optimal chunk size for your content (shorter for products, longer for documents)
-- Define which fields to embed (title + description vs full text)
-- Configure metadata for filtering (price range, category, date, etc.)
-
-### Step 3: Adjust Query Classification
-
-Update the query classifier in `src/query_processor.py` to recognize domain-specific query types:
-
-**For E-commerce:**
-- PRODUCT_SEARCH: "Find wireless headphones under $200"
-- COMPARISON: "Compare iPhone vs Samsung Galaxy"
-- RECOMMENDATION: "Suggest laptops for video editing"
-
-**For Documentation:**
-- CONCEPT_LOOKUP: "What is a closure in JavaScript?"
-- TUTORIAL: "How to deploy a React app?"
-- API_REFERENCE: "List all REST endpoints"
-
-**For Customer Support:**
-- TROUBLESHOOTING: "Can't reset my password"
-- ACCOUNT_INFO: "What's my current subscription plan?"
-- BILLING: "Why was I charged twice?"
-
-### Step 4: Customize Retrieval Weights
-
-Adjust retrieval method weights in `src/hybrid_retriever.py` based on your domain:
-
-```python
-# E-commerce: Prioritize exact matches (product names, SKUs)
-ECOMMERCE_WEIGHTS = {
-    "vector": 0.8,
-    "bm25": 1.3,
-    "graph": 0.9
-}
-
-# Documentation: Prioritize semantic understanding
-DOCS_WEIGHTS = {
-    "vector": 1.5,
-    "bm25": 0.7,
-    "graph": 0.8
-}
-
-# Customer Support: Balance exact issues and related problems
-SUPPORT_WEIGHTS = {
-    "vector": 1.0,
-    "bm25": 1.0,
-    "graph": 1.2
-}
-```
-
-### Step 5: Modify LLM Prompts
-
-Update prompt templates in `src/answer_generator.py` to match your domain:
-
-```python
-# Example for product recommendations
-PRODUCT_PROMPT = """
-Based on the following product information:
-{context}
-
-Recommend products that match this query: {question}
-
-For each recommendation:
-1. Product name and key features
-2. Why it matches the query
-3. Price and availability
-
-Provide 3-5 recommendations ranked by relevance.
-"""
-```
-
-### Step 6: Build Knowledge Graph
-
-Define domain-specific relationships in `scripts/knowledge_graph_builder.py`:
-
-**E-commerce relationships:**
-- Product → BELONGS_TO → Category
-- Product → HAS_FEATURE → Specification
-- Customer → PURCHASED → Product
-- Product → SIMILAR_TO → Product
-
-**Documentation relationships:**
-- Concept → PART_OF → Topic
-- Tutorial → TEACHES → Concept
-- API → RETURNS → DataType
-- Example → DEMONSTRATES → Concept
-
-### Step 7: Deploy
-
-The existing Docker configuration supports deployment to:
-- Render (used for MVP)
-- Railway
-- Fly.io
-- AWS ECS/Fargate
-- Google Cloud Run
-
-**Deployment checklist:**
-- Set `GROQ_API_KEY` in environment variables
-- Configure Qdrant Cloud URL or self-hosted instance
-- Adjust memory limits if needed
-- Enable CORS for frontend if hosted separately
-- Configure custom domain (optional)
-
----
-
-## Path to Generalization (Future Phases)
-
-### Phase 2: Abstract the Adapter Layer
-**Goal:** Separate domain logic from core RAG pipeline
-
-**Planned Changes:**
-- Create `BaseAdapter` abstract class defining common interface
-- Implement domain-specific adapters (e.g., `MemberAdapter`, `ProductAdapter`, `SupportAdapter`)
-- Move query preprocessing, chunking, and prompt templates into adapter modules
-- Enable runtime adapter switching via configuration
-
-**Benefit:** New domains can be added by implementing a single adapter class without modifying core retrieval logic.
-
-**Expected Timeline:** 2-3 weeks of development
-
----
-
-### Phase 3: Multi-Domain Support
-**Goal:** Handle queries across multiple data domains simultaneously
-
-**Planned Changes:**
-- Support multiple Qdrant collections (one per domain)
-- Implement cross-domain query router
-- Add federated search capability
-- Develop response merging strategies for multi-domain results
-
-**Use Case Examples:**
-- "Show me members in NYC and restaurants they've visited" (member + restaurant data)
-- "Find support tickets related to Product X" (ticket + product data)
-
-**Expected Timeline:** 3-4 weeks of development
-
----
-
-### Phase 4: Configuration-Driven Setup
-**Goal:** Zero-code deployment for new domains
-
-**Planned Changes:**
-- YAML-based domain configuration files
-- Automatic schema inference from sample JSON data
-- GUI for mapping data fields to embedding/metadata roles
-- Pre-built adapter templates for common domains (e-commerce, docs, CRM, etc.)
-- CLI tool for bootstrapping new domains
-
-**Vision:** Users provide data + config file → system generates adapter → ready for queries.
-
-**Expected Timeline:** 4-6 weeks of development
-
-**Example Configuration:**
-```yaml
-domain: ecommerce
-adapter: ProductAdapter
-data_source: products.json
-schema:
-  id_field: product_id
-  text_fields: [product_name, description, reviews_summary]
-  metadata_fields: [category, price, brand]
-  entity_types: [features, categories, brands]
-retrieval_weights:
-  vector: 0.8
-  bm25: 1.3
-  graph: 0.9
-```
+**Multi-Domain Support:**
+- Abstraction layer enabling domain-agnostic operations
+- Cross-domain query capabilities
+- Federated search across multiple data sources
+- Runtime adapter switching
 
 ---
 
 ## Project Background
 
-This project originated from a technical challenge focused on building a question-answering system for member communication data. The initial scope was domain-specific, but the process of designing the retrieval pipeline revealed opportunities to abstract core components and create a more flexible architecture.
+This project originated from a technical assignment for Aurora, which required building a question-answering system for member communication data. During development, the architecture revealed clear opportunities for generalization - leading to the vision of a plug-and-play RAG framework applicable across domains.
 
-**Key Insights from Development:**
+**Key Insights from Phase 1:**
 
 1. **Hybrid Retrieval is Critical:** Single-method retrieval (vector-only or keyword-only) achieves 75-82% precision. Combining three methods with RRF fusion improved precision to 94%, a 15-20% gain. Different query types benefit from different retrieval strategies.
 
@@ -727,13 +532,9 @@ This project originated from a technical challenge focused on building a questio
 - **Why Hybrid Search?** Empirical testing showed 15-20% better recall compared to vector-only or keyword-only approaches.
 - **Why NetworkX?** Lightweight, in-memory graph operations sufficient for MVP scale (<10K nodes). Easy serialization for persistence.
 
-**Roadmap:**
+**Phased Approach:**
 
-The phased approach to generalization ensures that architectural decisions are validated with real implementations before abstraction. Phase 1 demonstrated feasibility with member lookup; future phases will focus on:
-- Reducing domain-specific code to configuration files
-- Enabling multi-domain deployments with federated search
-- Building a library of pre-configured adapters for common use cases
-- Creating a CLI tool for bootstrapping new domains
+The member preference domain serves as Phase 1 validation, demonstrating that the architectural patterns work in production. Phase 1 learnings directly inform the generalization strategy, ensuring future development builds on validated foundations rather than theoretical designs.
 
 ---
 
