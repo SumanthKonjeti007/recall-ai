@@ -93,6 +93,63 @@ class HealthResponse(BaseModel):
     uptime_seconds: float
 
 
+# ==================== Data Setup Helper ====================
+
+def check_and_setup_data():
+    """
+    Check if required data files exist, setup if missing
+
+    Required files:
+    - data/raw_messages.json (source data)
+    - data/knowledge_graph.pkl (knowledge graph)
+    - data/bm25.pkl or data/bm25/ (BM25 index)
+    - data/embeddings* or data/embeddings/ (vector embeddings)
+    """
+    import subprocess
+
+    required_files = [
+        "data/raw_messages.json",
+        "data/knowledge_graph.pkl"
+    ]
+
+    # Check if critical files exist
+    missing = [f for f in required_files if not os.path.exists(f)]
+
+    if missing:
+        logger.warning(f"⚠️  Missing data files: {missing}")
+        logger.info("🔧 Running data setup scripts...")
+
+        try:
+            # Run setup scripts in order
+            scripts = [
+                "scripts/data_ingestion.py",
+                "scripts/embeddings.py",
+                "scripts/entity_extraction.py"
+            ]
+
+            for script in scripts:
+                if os.path.exists(script):
+                    logger.info(f"   Running {script}...")
+                    result = subprocess.run(
+                        ["python", script],
+                        capture_output=True,
+                        text=True,
+                        timeout=300  # 5 min timeout per script
+                    )
+                    if result.returncode != 0:
+                        logger.error(f"   ❌ {script} failed: {result.stderr}")
+                        raise Exception(f"Setup script {script} failed")
+                    logger.info(f"   ✅ {script} completed")
+
+            logger.info("✅ Data setup complete!")
+
+        except Exception as e:
+            logger.error(f"❌ Data setup failed: {str(e)}")
+            raise
+    else:
+        logger.info("✅ Data files present, skipping setup")
+
+
 # ==================== Lifespan Context Manager ====================
 
 @asynccontextmanager
@@ -106,6 +163,9 @@ async def lifespan(app: FastAPI):
     global qa_system
 
     try:
+        # Check and setup data if needed
+        check_and_setup_data()
+
         # Initialize QA System (loads all indexes)
         start_time = time.time()
 
