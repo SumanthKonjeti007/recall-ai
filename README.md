@@ -96,48 +96,63 @@ Sources: Message #34, Message #67
 
 The system operates on a message-based dataset representing member communication, preferences, and activity requests.
 
-**Data Schema:**
+**Raw Data Schema:**
 ```json
 {
-  "message_id": "unique_identifier",
-  "user_id": "member_identifier",
-  "user_name": "member_full_name",
-  "timestamp": "ISO8601_datetime",
-  "message_text": "natural_language_content",
-  "category": "request_type",
-  "entities": {
-    "locations": ["Paris", "New York"],
-    "restaurants": ["Le Bernardin", "Carbone"],
-    "preferences": ["window seating", "Italian cuisine"],
-    "dates": ["2024-03-15"]
-  }
+  "id": "b1e9bb83-18be-4b90-bbb8-83b7428e8e21",
+  "user_id": "cd3a350e-dbd2-408f-afa0-16a072f56d23",
+  "user_name": "Sophia Al-Farsi",
+  "timestamp": "2025-05-05T07:47:20.159073+00:00",
+  "message": "Please book a private jet to Paris for this Friday."
 }
 ```
 
 **Dataset Characteristics:**
 - 500+ member messages
 - 50+ unique members
-- 200+ entity mentions (locations, restaurants, preferences)
+- Message types: travel requests, dining preferences, event planning, service inquiries, billing questions
 - Temporal range: 6 months of communication
-- Categories: travel requests, dining preferences, event planning, general inquiries
+- Average message length: 15-30 words
 
-**Data Preprocessing:**
-The raw message data is processed through a multi-stage pipeline:
-1. **Entity Extraction:** Identifies locations, restaurants, dates, preferences using LLM
-2. **Knowledge Graph Construction:** Builds relationships between members and entities
-3. **Text Chunking:** Optimizes message segmentation for embedding
-4. **Vector Indexing:** Generates embeddings and stores in Qdrant with metadata
-5. **BM25 Indexing:** Creates inverted index for keyword matching
+**Data Preprocessing Pipeline:**
 
-See [scripts/README.md](./scripts/README.md) for preprocessing details.
+The raw message data is processed through a multi-stage pipeline before indexing:
+
+1. **Entity Extraction (LLM-based):**
+   - Identifies: locations, restaurants, hotels, dates, preferences, services
+   - Extracts relationships: member → entity connections
+   - Example: "Sophia wants a reservation at Osteria Francescana" → (Sophia, wants_reservation_at, Osteria Francescana)
+
+2. **Knowledge Graph Construction:**
+   - Builds NetworkX graph with member-entity relationships
+   - Nodes: Members and entities
+   - Edges: Relationships with metadata (message_id, timestamp)
+   - Serialized as `knowledge_graph.pkl`
+
+3. **Vector Embedding Generation:**
+   - FastEmbed (ONNX) generates 384-dim vectors
+   - Model: `BAAI/bge-small-en-v1.5`
+   - Each message embedded with user and timestamp metadata
+
+4. **Vector Indexing (Qdrant):**
+   - Messages stored in Qdrant cloud collection
+   - Metadata filters: user_id, user_name, timestamp
+   - Cosine similarity for retrieval
+
+5. **BM25 Indexing:**
+   - Builds inverted index for keyword search
+   - Tokenization: lowercase, stopword removal
+   - Serialized as `bm25_index.pkl`
+
+See [scripts/README.md](./scripts/README.md) for preprocessing implementation details.
 
 ---
 
 ## Architecture & Data Flow
 
-The following architecture demonstrates the complete request lifecycle using the Member Lookup implementation as a reference.
+The system uses a **dual-path architecture** where queries are routed to either a hybrid RAG pipeline (LOOKUP) or a graph analytics pipeline (ANALYTICS) based on query intent.
 
-### System Architecture Diagram
+### High-Level System Diagram
 
 ```
 ┌─────────────┐
@@ -146,171 +161,921 @@ The following architecture demonstrates the complete request lifecycle using the
 └──────┬──────┘
        │
        ▼
-┌─────────────────────────────────────────────────────┐
-│               FastAPI Backend                        │
-│                                                      │
-│  ┌──────────────────────────────────────────────┐  │
-│  │         Query Processor & Router              │  │
-│  │   (LLM-based classification & routing)        │  │
-│  │                                               │  │
-│  │   Classifies query intent:                    │  │
-│  │   • LOOKUP (specific member info)             │  │
-│  │   • ANALYTICS (patterns, aggregation)         │  │
-│  │                                               │  │
-│  │   Assigns retrieval weights based on type     │  │
-│  └────────────────┬─────────────────────────────┘  │
-│                   │                                  │
-│            ┌──────┴──────┐                          │
-│            │             │                          │
-│            ▼             ▼                          │
-│  ┌─────────────┐   ┌─────────────────┐             │
-│  │ LOOKUP Path │   │ ANALYTICS Path  │             │
-│  └──────┬──────┘   └────────┬────────┘             │
-│         │                   │                       │
-│         ▼                   ▼                       │
-│  ┌──────────────────────────────────────────────┐  │
-│  │      Hybrid Retriever (3 Methods)            │  │
-│  │                                               │  │
-│  │  ┌─────────────────────────────────────────┐ │  │
-│  │  │  Method 1: Vector Search (Qdrant)       │ │  │
-│  │  │  • Semantic similarity matching          │ │  │
-│  │  │  • Embedding-based retrieval             │ │  │
-│  │  └─────────────────────────────────────────┘ │  │
-│  │                                               │  │
-│  │  ┌─────────────────────────────────────────┐ │  │
-│  │  │  Method 2: Keyword Search (BM25)         │ │  │
-│  │  │  • Exact term matching                   │ │  │
-│  │  │  • Name and entity precision             │ │  │
-│  │  └─────────────────────────────────────────┘ │  │
-│  │                                               │  │
-│  │  ┌─────────────────────────────────────────┐ │  │
-│  │  │  Method 3: Knowledge Graph (NetworkX)    │ │  │
-│  │  │  • Relationship traversal                │ │  │
-│  │  │  • Entity connection discovery           │ │  │
-│  │  └─────────────────────────────────────────┘ │  │
-│  │                                               │  │
-│  └────────────────┬─────────────────────────────┘  │
-│                   │                                  │
-│                   ▼                                  │
-│  ┌──────────────────────────────────────────────┐  │
-│  │      Reciprocal Rank Fusion (RRF)            │  │
-│  │   (Combines & ranks results from 3 methods)   │  │
-│  └────────────────┬─────────────────────────────┘  │
-│                   │                                  │
-│                   ▼                                  │
-│  ┌──────────────────────────────────────────────┐  │
-│  │         Context Retrieval & Formatting        │  │
-│  │   (Top-K messages with metadata)              │  │
-│  └────────────────┬─────────────────────────────┘  │
-└───────────────────┼──────────────────────────────────┘
-                    │
-                    ▼
-         ┌────────────────────────────┐
-         │   Prompt Construction       │
-         │ (Context + Query Template)  │
-         └─────────┬──────────────────┘
-                   │
-                   ▼
-         ┌────────────────────────────┐
-         │    Groq LLM Inference       │
-         │   (Llama 3.3 70B)           │
-         │   (Natural Language Gen)    │
-         └─────────┬──────────────────┘
-                   │
-                   ▼
-         ┌────────────────────────────┐
-         │    Response Formatting      │
-         │   (JSON API Response)       │
-         └─────────┬──────────────────┘
-                   │
-                   ▼
-            ┌─────────────┐
-            │   Client    │
-            │  (Web UI)   │
-            └─────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                  FastAPI Backend                        │
+│                                                          │
+│  ┌────────────────────────────────────────────────┐    │
+│  │     QUERY PROCESSING PIPELINE                   │    │
+│  │                                                 │    │
+│  │  Step 1: Routing (LOOKUP vs ANALYTICS)         │    │
+│  │  Step 2: Decomposition (if needed)              │    │
+│  │  Step 3: Classification (4 types + weights)     │    │
+│  └───────────────────┬────────────────────────────┘    │
+│                      │                                   │
+│              ┌───────┴────────┐                         │
+│              │  PATH SPLIT     │                         │
+│              └───────┬────────┘                         │
+│                      │                                   │
+│          ┌───────────┴───────────┐                      │
+│          │                       │                      │
+│          ▼                       ▼                      │
+│   ┌──────────────┐       ┌──────────────────┐          │
+│   │ LOOKUP PATH  │       │  ANALYTICS PATH   │          │
+│   │  (RAG)       │       │  (Graph Analytics)│          │
+│   └──────┬───────┘       └──────┬───────────┘          │
+│          │                      │                       │
+│          │                      │                       │
+│  ┌───────▼──────────────────────▼──────────────────┐   │
+│  │           LLM Answer Generation                  │   │
+│  │              (Groq Llama 3.3 70B)                │   │
+│  └─────────────────────┬────────────────────────────┘   │
+└────────────────────────┼─────────────────────────────────┘
+                         │
+                         ▼
+                  ┌─────────────┐
+                  │   Client    │
+                  │  (Response) │
+                  └─────────────┘
 ```
-
-### Data Flow Steps
-
-**Step 1: Query Reception**
-- Client sends natural language question via `/ask` endpoint
-- FastAPI validates request schema and logs incoming query
-- Request includes query text and optional metadata
-
-**Step 2: Query Classification & Routing**
-- LLM-based query processor analyzes query intent
-- Classifies as one of the following types:
-  - **LOOKUP:** Direct member information retrieval (e.g., "Sophia's preferences")
-  - **ANALYTICS:** Pattern discovery and aggregation (e.g., "most popular destinations")
-- Determines optimal retrieval strategy and assigns weights to each method
-- Example weights for LOOKUP: `{vector: 1.0, bm25: 1.2, graph: 1.1}`
-- Example weights for ANALYTICS: `{vector: 0.8, bm25: 0.6, graph: 1.5}`
-
-**Step 3: Hybrid Retrieval (3 Parallel Methods)**
-
-The system executes three retrieval methods in parallel:
-
-**Method 1: Vector Search (Qdrant)**
-- FastEmbed generates 384-dimensional embedding from query
-- Model: `BAAI/bge-small-en-v1.5` (ONNX-optimized)
-- Qdrant performs cosine similarity search against indexed messages
-- Returns top-K most semantically similar messages (K=10 default)
-- Inference time: ~50ms per query
-
-**Method 2: Keyword Search (BM25)**
-- Query tokenized and processed through BM25 algorithm
-- Searches inverted index for exact term matches
-- Optimized for member names, restaurant names, locations
-- Returns top-K messages by BM25 score
-- Inference time: ~20ms per query
-
-**Method 3: Knowledge Graph Traversal (NetworkX)**
-- Extracts entities from query (member names, locations, preferences)
-- Traverses graph relationships (e.g., `Sophia → PREFERS → Italian`)
-- Retrieves messages connected to matched entities
-- Returns top-K messages by graph relevance
-- Inference time: ~30ms per query
-
-**Step 4: Reciprocal Rank Fusion (RRF)**
-- Combines results from all three retrieval methods
-- Applies query-specific weights from Step 2
-- Calculates unified relevance score for each message
-- Re-ranks messages by combined score
-- Removes duplicates while preserving source diversity
-
-**Step 5: Context Retrieval & Formatting**
-- Selects top-N messages from fused results (N=5 default)
-- Formats context with message text, metadata, and source attribution
-- Structures as prompt context window for LLM
-- Includes temporal information (message timestamps)
-
-**Step 6: Prompt Construction**
-- Builds LLM prompt with the following components:
-  - System instructions (answer based on provided context only)
-  - Retrieved context (formatted messages)
-  - Original user query
-  - Fallback behavior (admit uncertainty if context insufficient)
-
-**Step 7: LLM Processing**
-- Groq API (Llama 3.3 70B) generates natural language response
-- Prompt template enforces:
-  - Answer only from provided context
-  - Cite sources (message IDs)
-  - Acknowledge limitations when information is incomplete
-- Inference time: ~500-800ms
-
-**Step 8: Response Generation & Delivery**
-- LLM output formatted as JSON response
-- Includes:
-  - Answer text (natural language)
-  - Sources (message IDs referenced)
-  - Retrieval metadata (methods used, scores)
-  - Confidence indicators (optional)
-- Returned to client via API
-- Rendered in web UI with markdown formatting
 
 ---
 
+### Query Processing Pipeline
+
+All queries go through a 3-step processing pipeline before being routed to a specific path.
+
+#### Step 1: Routing (LOOKUP vs ANALYTICS)
+
+**Location:** `/src/query_processor.py:394-457`
+
+The LLM-based router classifies the query into one of two routes:
+
+**LOOKUP Route:**
+- Single member or multi-member queries
+- Specific information retrieval
+- Examples:
+  - "What are Sophia's dining preferences?"
+  - "When is Vikram traveling to Paris?"
+  - "Compare Layla and Lily's seating preferences"
+
+**ANALYTICS Route:**
+- Cross-member aggregation queries
+- Pattern discovery
+- Examples:
+  - "Which clients requested the SAME restaurants?"
+  - "Who has complained about billing?"
+  - "What are the MOST popular destinations?"
+
+**Routing Decision:**
+```python
+if route == "ANALYTICS":
+    # → Analytics pipeline (graph-based)
+    analytics_result = self.analytics.analyze(query)
+else:  # route == "LOOKUP"
+    # → RAG pipeline (hybrid retrieval)
+    # Continue to decomposition and classification
+```
+
+---
+
+#### Step 2: Decomposition (LOOKUP only)
+
+**Location:** `/src/query_processor.py:459-510`
+
+For LOOKUP queries, the system determines if decomposition is needed:
+
+**No Decomposition:**
+- ANALYTICS queries (handled as-is by graph analytics)
+- Aggregation-type LOOKUP queries (e.g., "Which clients visited Paris?")
+- Single-entity queries (e.g., "Sophia's preferences")
+
+**Decomposition Applied:**
+- Multi-entity comparison queries
+- Example: "Compare Layla and Lily's seating preferences"
+  - Sub-query 1: "What are Layla's seating preferences?"
+  - Sub-query 2: "What are Lily's seating preferences?"
+
+```python
+if route == "ANALYTICS":
+    sub_queries = [query]  # No decomposition
+elif self._is_aggregation_query(query):
+    sub_queries = [query]  # No decomposition
+else:  # LOOKUP + non-aggregation
+    sub_queries = self._decompose_llm(query)  # May decompose
+```
+
+---
+
+#### Step 3: Classification (4 Query Types)
+
+**Location:** `/src/query_processor.py:512-616`
+
+Each sub-query is classified into one of **4 types**, each with different retrieval weight profiles:
+
+##### Type 1: ENTITY_SPECIFIC_PRECISE
+
+**Condition:** Entity detected + specific attribute keyword
+
+**Examples:**
+- "What are Sophia's **dining** preferences?"
+- "Show me Vikram's **travel** bookings"
+- "Armand's **flight** preferences"
+
+**Weight Profile:**
+```python
+{
+  'semantic': 1.0,   # Baseline
+  'bm25': 1.2,       # Boost (specific keywords: dining, flight, etc.)
+  'graph': 1.1       # Boost (user-specific queries benefit from graph)
+}
+```
+
+**Rationale:** Specific attributes like "dining", "flight" are exact keywords → BM25 excels. User-centric queries leverage knowledge graph relationships.
+
+---
+
+##### Type 2: ENTITY_SPECIFIC_BROAD
+
+**Condition:** Entity detected + NO specific attribute (vague/general)
+
+**Examples:**
+- "What are Vikram's **expectations**?" (vague)
+- "Tell me about Layla's **preferences**" (broad)
+- "Lily's information" (no specific attribute)
+
+**Weight Profile:**
+```python
+{
+  'semantic': 0.9,   # Reduced (vague terms harder to match)
+  'bm25': 1.2,       # Boost (user name still strong keyword)
+  'graph': 1.1       # Boost (user-centric benefits from graph)
+}
+```
+
+**Rationale:** Vague terms like "expectations" are harder to match semantically, but user name is still a strong keyword signal.
+
+---
+
+##### Type 3: CONCEPTUAL
+
+**Condition:** No entity detected + conceptual keywords present
+
+**Examples:**
+- "Show me ideas for a **relaxing** getaway"
+- "What are **top luxury** hotels?"
+- "**Recommend** romantic restaurants"
+
+**Weight Profile:**
+```python
+{
+  'semantic': 1.2,   # Boost (conceptual queries are semantic in nature)
+  'bm25': 1.0,       # Baseline
+  'graph': 0.9       # Reduced (no specific user/entity to leverage)
+}
+```
+
+**Rationale:** Conceptual queries ("luxury", "romantic") are semantic in nature → semantic search excels. No specific user/entity to leverage graph.
+
+---
+
+##### Type 4: AGGREGATION
+
+**Condition:** Aggregation phrases detected ("which clients", "who has", etc.)
+
+**Examples:**
+- "**Which clients** visited Paris?"
+- "**Who has** complained about billing?"
+- "**List all** members who booked restaurants"
+
+**Weight Profile:**
+```python
+{
+  'semantic': 1.5,   # Strong boost (cast wide net across all users)
+  'bm25': 1.0,       # Baseline
+  'graph': 0.9       # Reduced (graph is user-specific, not great for "all users")
+}
+```
+
+**Rationale:** Aggregation queries need to cast a wide net → semantic search finds conceptually similar messages across all users. Graph is less useful (user-specific).
+
+---
+
+### Path Split
+
+After query processing, the system takes one of two paths based on the route:
+
+```python
+route = query_plans[0].get('route', 'LOOKUP')
+
+if route == "ANALYTICS":
+    # → PATH A: Graph Analytics Pipeline
+    analytics_result = self.analytics.analyze(query, verbose)
+    return analytics_result
+else:  # route == "LOOKUP"
+    # → PATH B: Hybrid RAG Pipeline
+    # Continue to hybrid retrieval...
+```
+
+---
+
+## LOOKUP Path: Hybrid RAG Pipeline
+
+**Entry Point:** `/src/qa_system.py:139-204`
+
+When `route == "LOOKUP"`, the system processes queries through 6 steps:
+
+### Step 1: User & Temporal Detection
+
+**Location:** `/src/hybrid_retriever.py:103-126`
+
+Before retrieval, extract filters from the query:
+
+**User Detection:**
+```python
+# Example: "Fatima's plan" → filter to Fatima's messages
+users_detected = []
+for word in query.split():
+    resolved_name = self.name_resolver.resolve(word)
+    if resolved_name:
+        users_detected.append(resolved_name)
+        user_id = self.name_resolver.get_user_id(resolved_name)
+```
+
+**Temporal Detection:**
+```python
+# Example: "January 2025" → extract date range
+date_range = self.temporal_analyzer.extract_date_range(query)
+# Returns: ("2025-01-01", "2025-01-31")
+```
+
+---
+
+### Step 2: Parallel Retrieval (3 Methods)
+
+**Location:** `/src/hybrid_retriever.py:128-177`
+
+The system executes **3 retrieval methods in parallel**:
+
+#### Method 1: Semantic Search (Qdrant)
+
+```python
+semantic_results = self.qdrant_search.search(
+    query,
+    top_k=20,              # Retrieve top 20
+    user_id=user_id,       # Filter by user (if detected)
+    date_range=date_range  # Filter by dates (if detected)
+)
+```
+
+**Process:**
+1. Query embedded into 384-dim vector using FastEmbed
+2. Qdrant performs cosine similarity search
+3. Filters applied: user_id, date_range (if specified)
+4. Returns top 20 most semantically similar messages
+
+**Example:**
+- Query: "Sophia's dining preferences"
+- Finds: Messages about restaurants, food, meals (semantic similarity)
+- Filtered to: Only Sophia's messages
+
+**Inference Time:** ~50ms
+
+---
+
+#### Method 2: BM25 Keyword Search
+
+```python
+bm25_results = self.bm25_search.search(
+    query,
+    top_k=20,
+    user_id=user_id  # Filter by user
+)
+
+# POST-FILTER: Apply date range if specified
+if date_range:
+    bm25_results = self._filter_by_date_range(bm25_results, date_range)
+```
+
+**Process:**
+1. Tokenizes query: `["sophia", "dining", "preferences"]`
+2. TF-IDF scoring to find keyword matches
+3. Filters applied: user_id (if specified), date_range (post-search)
+4. Returns top 20 keyword-matched messages
+
+**Example:**
+- Query: "Sophia's dining preferences"
+- Finds: Messages with exact keywords "Sophia", "dining", "preferences"
+
+**Inference Time:** ~20ms
+
+---
+
+#### Method 3: Knowledge Graph Search
+
+```python
+graph_results = self._graph_search(query, top_k=10)
+
+# POST-FILTER: Apply date range
+if date_range:
+    graph_results = self._filter_by_date_range(graph_results, date_range)
+```
+
+**Process:**
+1. Extract user names from query using NameResolver
+2. Extract keywords (nouns, entities)
+3. Detect relationship type from query
+4. Query graph for user relationships
+5. Return top 10 messages
+
+**Example:**
+- Query: "What are Sophia's dining preferences?"
+- Detected user: "Sophia Al-Farsi"
+- Detected relationship: "PREFERS" (from keyword "preferences")
+- Query graph: Get all PREFERS relationships for Sophia
+- Filter messages: Only those mentioning dining/food
+
+**Inference Time:** ~30ms
+
+---
+
+### Step 3: Reciprocal Rank Fusion (RRF)
+
+**Location:** `/src/hybrid_retriever.py:179-193, method at 570-623`
+
+Combines results from all 3 methods using RRF algorithm:
+
+```python
+fused_results = self._reciprocal_rank_fusion(
+    semantic_results,  # Top 20 from Qdrant
+    bm25_results,      # Top 20 from BM25
+    graph_results,     # Top 10 from Graph
+    k=60,              # RRF constant
+    weights=weights    # From classification step
+)
+```
+
+**RRF Algorithm:**
+
+For each message that appears in ANY method:
+
+```python
+# Semantic contribution
+for rank, (msg, _) in enumerate(semantic_results, start=1):
+    msg_id = msg['id']
+    rrf_score = weights['semantic'] * (1.0 / (60 + rank))
+    scores[msg_id] += rrf_score
+
+# Same for BM25 and Graph...
+# Messages appearing in MULTIPLE methods get HIGHER combined scores
+```
+
+**Example:**
+
+Message: "Sophia loves Italian food"
+- Semantic rank 5: `1.0 × 1/(60+5) = 0.0154`
+- BM25 rank 2: `1.2 × 1/(60+2) = 0.0194`
+- Graph rank 1: `1.1 × 1/(60+1) = 0.0180`
+- **Combined RRF: 0.0528** ✅
+
+Message: "Sophia visited Tokyo"
+- Semantic rank 1: `1.0 × 1/(60+1) = 0.0164`
+- Not in BM25: 0
+- Not in Graph: 0
+- **Combined RRF: 0.0164** (lower!)
+
+**Result:** Multi-method messages ranked higher!
+
+---
+
+### Step 4: Diversity Enforcement
+
+**Location:** `/src/hybrid_retriever.py:194-227, method at 496-568`
+
+Prevents one user from dominating results using round-robin strategy:
+
+```python
+if query_type == "AGGREGATION":
+    # Max 2 messages per user (diversity across users)
+    diverse_results = self._diversify_by_user(fused_results, max_per_user=2, top_k=20)
+else:  # ENTITY_SPECIFIC
+    # Max 10 messages per user (allow concentration for complete context)
+    diverse_results = self._diversify_by_user(fused_results, max_per_user=10, top_k=20)
+```
+
+**Round-Robin Strategy:**
+
+```python
+# Group by user, sort users by best message position
+user_messages = {
+    "Sophia": [msg1, msg2, msg3],
+    "Vikram": [msg4, msg5],
+    "Layla": [msg6]
+}
+
+# Round 1: Take 1 from each user
+result = [Sophia_msg1, Vikram_msg4, Layla_msg6]
+
+# Round 2: Take 2nd from users who have more
+result += [Sophia_msg2, Vikram_msg5]
+
+# Final: [Sophia_msg1, Vikram_msg4, Layla_msg6, Sophia_msg2, Vikram_msg5]
+```
+
+**Result:** All users represented before any user gets 2 messages!
+
+---
+
+### Step 5: Result Composition
+
+**Location:** `/src/result_composer.py:29-94`
+
+If query was decomposed into multiple sub-queries, compose results:
+
+```python
+composed_results = self.composer.compose(
+    all_results,        # List of result lists (one per sub-query)
+    strategy="auto",    # Auto-select strategy
+    max_results=20
+)
+```
+
+**Strategies:**
+
+**A. PASSTHROUGH** (Single query)
+```python
+# Input: [[msg1, msg2, msg3]]
+# Output: [msg1, msg2, msg3]
+```
+
+**B. INTERLEAVE** (Comparison queries)
+```python
+# Input:
+# [
+#   [Thiago_msg1, Thiago_msg2, Thiago_msg3],  # Sub-query 1
+#   [Hans_msg1, Hans_msg2, Hans_msg3]         # Sub-query 2
+# ]
+
+# Output (interleaved):
+# [Thiago_msg1, Hans_msg1, Thiago_msg2, Hans_msg2, ...]
+```
+
+Why? Ensures balanced representation for comparisons!
+
+**C. MERGE** (Aggregation)
+- Combine all results
+- Sort by RRF score
+- Deduplicate
+
+---
+
+### Step 6: Answer Generation (LLM)
+
+**Location:** `/src/answer_generator.py:42-123`
+
+```python
+result = self.generator.generate_with_sources(
+    query=query,
+    composed_results=composed_results,
+    temperature=0.3
+)
+```
+
+**6.1: Format Context**
+
+```python
+context = """[1] Sophia Al-Farsi:
+I love Italian cuisine, please suggest restaurants in Paris.
+
+[2] Sophia Al-Farsi:
+I prefer window seating and would like reservations for 8 PM.
+
+[3] Sophia Al-Farsi:
+I'm planning a trip to Paris next Friday, can you arrange dining?"""
+```
+
+**6.2: Build RAG Prompt**
+
+```python
+prompt = f"""Answer this question using the client messages below.
+
+QUESTION: {query}
+
+CLIENT MESSAGES:
+{context}
+
+Format: Answer directly and concisely in 2-4 sentences.
+
+IMPORTANT:
+- Answer naturally (no technical references)
+- Use **markdown bold** for client names
+- Be professional yet conversational
+
+Answer:"""
+```
+
+**6.3: Call Groq LLM**
+
+```python
+response = self.client.chat.completions.create(
+    model="llama-3.3-70b-versatile",
+    messages=[
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": prompt}
+    ],
+    temperature=0.3,
+    max_tokens=500
+)
+```
+
+**6.4: Get Answer**
+
+```
+**Sophia Al-Farsi** has expressed a strong preference for Italian cuisine
+during her Paris visits. She typically requests window seating and prefers
+8 PM reservations. She's planning a trip to Paris next Friday and would
+like dining arrangements made.
+```
+
+**Inference Time:** ~500-800ms
+
+---
+
+### LOOKUP Path Summary
+
+```
+User Query: "What are Sophia's dining preferences?"
+↓
+Query Processing:
+  → Classification: ENTITY_SPECIFIC_PRECISE
+  → Weights: {semantic: 1.0, bm25: 1.2, graph: 1.1}
+↓
+Step 1: User & Temporal Detection
+  → Detect user "Sophia Al-Farsi", no date range
+↓
+Step 2: Parallel Retrieval
+  → Semantic (Qdrant): 20 results
+  → BM25 (Keywords): 20 results
+  → Graph (Relationships): 10 results
+↓
+Step 3: RRF Fusion
+  → 35 unique messages → combined scores
+↓
+Step 4: Diversity Enforcement
+  → Max 10 per user (ENTITY_SPECIFIC)
+  → Output: Top 20 messages
+↓
+Step 5: Result Composition
+  → Strategy: PASSTHROUGH (single query)
+↓
+Step 6: Answer Generation
+  → Format context (20 messages → text)
+  → Build RAG prompt
+  → Call Groq LLM (llama-3.3-70b)
+  → Get natural language answer
+↓
+Response: {
+  answer: "Sophia prefers Italian cuisine...",
+  sources: [20 messages],
+  route: "LOOKUP"
+}
+```
+
+---
+
+## ANALYTICS Path: Graph Analytics Pipeline
+
+**Entry Point:** `/src/graph_analytics.py:94-99`
+
+When `route == "ANALYTICS"`, the system uses graph-based analytics instead of RAG:
+
+### Step 1: Extract Entity Information (LLM)
+
+**Location:** `/src/graph_analytics.py:101-180`
+
+The LLM extracts 3 pieces of information:
+
+```python
+def _extract_entity_info(self, query: str) -> Tuple[str, str, List[str]]:
+    prompt = f"""Extract information from this analytics query:
+
+Query: "{query}"
+
+Extract:
+1. Entity type: What is the user asking about?
+   (restaurant, hotel, destination, service, etc.)
+2. Aggregation method: What type of analysis?
+   (SAME, MOST, POPULAR, SIMILAR, COUNT)
+3. Keywords: Key search terms to find relevant data
+
+Respond in JSON format:
+{{
+  "entity_type": "restaurant" | "hotel" | "destination" | "service" | etc.,
+  "method": "SAME" | "MOST" | "POPULAR" | "SIMILAR" | "COUNT",
+  "keywords": ["keyword1", "keyword2", ...]
+}}
+"""
+```
+
+**Example:**
+
+Query: "Which clients requested the SAME restaurants?"
+
+LLM Response:
+```json
+{
+  "entity_type": "restaurant",
+  "method": "SAME",
+  "keywords": ["restaurant", "requested", "clients"]
+}
+```
+
+---
+
+### Step 2: Query Knowledge Graph
+
+**Location:** `/src/graph_analytics.py:182-252`
+
+Searches the Knowledge Graph for relevant triples (relationships).
+
+**What is a Triple?**
+
+A triple represents a relationship in the graph:
+```
+(Subject, Relationship, Object)
+
+Example:
+(Sophia Al-Farsi, wants_reservation_at, Osteria Francescana)
+```
+
+**Query Strategy:**
+
+```python
+def _query_graph(self, entity_type: str, keywords: List[str]) -> List[Dict]:
+    # Known entities database
+    known_entities_by_type = {
+        'restaurant': [
+            'Osteria Francescana', 'Eleven Madison Park', 'Le Bernardin',
+            'The River Café', 'Alinea', 'The Ivy', 'Noma'
+        ],
+        'hotel': ['Four Seasons', 'The Peninsula', 'Park Hyatt', 'The Ritz'],
+        'destination': ['Paris', 'Tokyo', 'London', 'Dubai', 'New York'],
+        'service': ['private jet', 'yacht', 'spa', 'golf', 'museum']
+    }
+
+    # Search graph edges for matching entities
+    for u, v, data in self.kg.graph.edges(data=True):
+        obj = data.get('metadata', {}).get('object', v)
+
+        # Strategy 1: Match known entities
+        if any(entity.lower() in obj.lower() for entity in known_entities):
+            relevant_triples.append({
+                'subject': u,           # User name (e.g., "Sophia Al-Farsi")
+                'relationship': data.get('relationship'),
+                'object': obj,          # Entity (e.g., "Osteria Francescana")
+                'message_id': data.get('message_id')
+            })
+```
+
+**Example:**
+
+Entity Type: `restaurant`
+Keywords: `["restaurant", "clients"]`
+
+Found Triples:
+```python
+[
+    {
+        'subject': 'Sophia Al-Farsi',
+        'relationship': 'wants_reservation_at',
+        'object': 'Osteria Francescana',
+        'message_id': 'msg_123'
+    },
+    {
+        'subject': 'Vikram Desai',
+        'relationship': 'wants_reservation_at',
+        'object': 'Osteria Francescana',
+        'message_id': 'msg_456'
+    },
+    {
+        'subject': 'Layla Kawaguchi',
+        'relationship': 'wants_reservation_at',
+        'object': 'Le Bernardin',
+        'message_id': 'msg_789'
+    }
+]
+```
+
+---
+
+### Step 3: Aggregate Triples
+
+**Location:** `/src/graph_analytics.py:254-333`
+
+The system aggregates data based on the method:
+
+#### Method: SAME
+
+Group by entity, count users per entity, filter for entities with 2+ users:
+
+```python
+def _aggregate_triples(self, triples: List[Dict], method: str) -> Dict:
+    if method == 'SAME':
+        entity_users = defaultdict(set)
+
+        # Group by entity
+        for triple in triples:
+            entity = triple['object']  # e.g., "Osteria Francescana"
+            entity_users[entity].add(triple['subject'])  # Add user
+
+        # Filter: only entities with 2+ users
+        aggregated = {
+            entity: list(users)
+            for entity, users in entity_users.items()
+            if len(users) > 1
+        }
+
+        # Sort by popularity (descending)
+        aggregated = dict(sorted(aggregated.items(),
+                                key=lambda x: len(x[1]),
+                                reverse=True))
+
+        return aggregated
+```
+
+**Example:**
+
+Input Triples: (from Step 2)
+
+Output Aggregated Data:
+```python
+{
+    "Osteria Francescana": ["Sophia Al-Farsi", "Vikram Desai"],
+    # Le Bernardin excluded (only 1 user)
+}
+```
+
+---
+
+#### Method: MOST / POPULAR
+
+Rank all entities by user count (descending):
+
+```python
+elif method in ['MOST', 'POPULAR']:
+    # Sort by user count (all entities, not just multi-user)
+    aggregated = dict(sorted(entity_users.items(),
+                            key=lambda x: len(x[1]),
+                            reverse=True))
+```
+
+**Output:**
+```python
+{
+    "Osteria Francescana": ["Sophia Al-Farsi", "Vikram Desai"],  # 2 users
+    "Le Bernardin": ["Layla Kawaguchi"],                         # 1 user
+    "The Ivy": ["Hans Müller"]                                   # 1 user
+}
+```
+
+---
+
+#### Method: SIMILAR
+
+Find users with overlapping preferences:
+
+```python
+elif method == 'SIMILAR':
+    user_preferences = defaultdict(set)
+
+    # Group by user (instead of entity)
+    for triple in triples:
+        user = triple['subject']
+        entity = triple['object']
+        user_preferences[user].add(entity)
+
+    return {user: list(prefs) for user, prefs in user_preferences.items()}
+```
+
+**Output:**
+```python
+{
+    "Sophia Al-Farsi": ["Osteria Francescana", "Le Bernardin", "Noma"],
+    "Vikram Desai": ["Osteria Francescana", "Alinea"],
+    "Layla Kawaguchi": ["Le Bernardin", "The Ivy"]
+}
+```
+
+---
+
+### Step 4: Generate Natural Language Answer (LLM)
+
+**Location:** `/src/graph_analytics.py:391-515`
+
+Converts aggregated data into natural language:
+
+```python
+def _generate_answer(self, query: str, aggregated: Dict,
+                    entity_type: str, method: str) -> str:
+
+    # Format data as JSON
+    formatted_data = json.dumps(aggregated, indent=2)
+
+    # Customize instructions based on method
+    if method == "SAME":
+        instructions = """Instructions:
+1. List each restaurant that was requested by MULTIPLE clients
+2. For each restaurant, list which clients requested it
+3. Sort by number of clients (most popular first)
+"""
+
+    prompt = f"""You are an intelligent concierge assistant.
+
+QUESTION: "{query}"
+
+DATA:
+{formatted_data}
+
+{instructions}
+
+Answer:"""
+
+    response = self.llm.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=300
+    )
+
+    return response.choices[0].message.content.strip()
+```
+
+**Example:**
+
+Input:
+- Query: "Which clients requested the SAME restaurants?"
+- Aggregated: `{"Osteria Francescana": ["Sophia Al-Farsi", "Vikram Desai"]}`
+
+LLM Output:
+```
+**Restaurants with Multiple Clients:**
+
+- **Osteria Francescana**: Requested by Sophia Al-Farsi, Vikram Desai (2 clients)
+
+In total, 1 restaurant was shared among multiple clients.
+```
+
+**Inference Time:** ~500-800ms
+
+---
+
+### ANALYTICS Path Summary
+
+```
+User Query: "Which clients requested the SAME restaurants?"
+↓
+Query Processing:
+  → Route: ANALYTICS
+↓
+Step 1: Extract Entity Info (LLM)
+  → entity_type: "restaurant"
+  → method: "SAME"
+  → keywords: ["restaurant", "clients"]
+↓
+Step 2: Query Knowledge Graph
+  → Search for restaurant-related triples
+  → Found 15 triples (user → restaurant relationships)
+↓
+Step 3: Aggregate Triples
+  → Group by restaurant
+  → Count users per restaurant
+  → Filter: only restaurants with 2+ users
+  → Result: {"Osteria Francescana": ["Sophia", "Vikram"]}
+↓
+Step 4: Generate Answer (LLM)
+  → Convert aggregated data to natural language
+  → Result: "1 restaurant was shared: Osteria Francescana..."
+↓
+Response: {
+  answer: (natural language),
+  route: "ANALYTICS",
+  aggregated_data: (structured data)
+}
+```
+
+---
+
+### Key Differences: LOOKUP vs ANALYTICS
+
+| Aspect | LOOKUP Path | ANALYTICS Path |
+|--------|-------------|----------------|
+| **Data Source** | Message retrieval (Qdrant, BM25, Graph) | Knowledge Graph triples |
+| **Retrieval Strategy** | Hybrid (3 methods + RRF) | Graph query by entity type |
+| **LLM Calls** | 1 (answer generation) | 2 (entity extraction + answer generation) |
+| **Focus** | Individual member information | Cross-member patterns/aggregation |
+| **Query Examples** | "Sophia's preferences" | "Which clients visited Paris?" |
+| **Output** | Natural language + source messages | Natural language + aggregated data |
+
+---
 ## Technical Implementation
 
 ### Technology Stack
