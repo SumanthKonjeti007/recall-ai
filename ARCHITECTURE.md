@@ -2,9 +2,14 @@
 
 Detailed step-by-step walkthrough of query execution through the codebase.
 
+**Three Examples:**
+1. Simple LOOKUP: `"What are Sophia's dining preferences?"`
+2. LOOKUP with Decomposition: `"Compare Layla and Lily's seating preferences"`
+3. ANALYTICS: `"Which clients requested the SAME restaurants?"`
+
 ---
 
-## Example 1: LOOKUP Query
+## Example 1: Simple LOOKUP Query
 
 **Query:** `"What are Sophia's dining preferences?"`
 
@@ -102,7 +107,120 @@ Total Time: ~1.8s
 
 ---
 
-## Example 2: ANALYTICS Query
+## Example 2: LOOKUP with Decomposition
+
+**Query:** `"Compare Layla and Lily's seating preferences"`
+
+### Execution Trace
+
+```
+┌──────────────────────────────────────────────┐
+│ 1. API Entry (api.py)                        │
+│    POST /ask                                  │
+│    → qa_system.answer(query)                 │
+└───────────────────┬──────────────────────────┘
+                    │
+┌───────────────────▼──────────────────────────┐
+│ 2. Query Processing (query_processor.py)     │
+│                                               │
+│    Routing:                                   │
+│    • Contains member names: "Layla", "Lily" ✓│
+│    • No aggregation phrases                   │
+│    • Route → LOOKUP                           │
+│                                               │
+│    Decomposition:                             │
+│    • Detect: "compare" keyword ✓             │
+│    • LLM decomposes into sub-queries:        │
+│      1. "What are Layla's seating prefs?"    │
+│      2. "What are Lily's seating prefs?"     │
+│                                               │
+│    Classification (both sub-queries):         │
+│    • Type: ENTITY_SPECIFIC_PRECISE           │
+│    • Weights: {semantic: 1.0, bm25: 1.2,     │
+│                graph: 1.1}                    │
+└───────────────────┬──────────────────────────┘
+                    │
+┌───────────────────▼──────────────────────────┐
+│ 3. Hybrid Retrieval (2 separate retrievals)  │
+│                                               │
+│    Sub-Query 1: Layla's preferences           │
+│    ┌─────────────────────────────────────┐   │
+│    │ • User: Layla Kawaguchi             │   │
+│    │ • Semantic: 20 messages             │   │
+│    │ • BM25: 20 messages                 │   │
+│    │ • Graph: 10 messages                │   │
+│    │ • RRF Fusion → Top 20               │   │
+│    └─────────────────────────────────────┘   │
+│                                               │
+│    Sub-Query 2: Lily's preferences            │
+│    ┌─────────────────────────────────────┐   │
+│    │ • User: Lily Yamamoto               │   │
+│    │ • Semantic: 20 messages             │   │
+│    │ • BM25: 20 messages                 │   │
+│    │ • Graph: 10 messages                │   │
+│    │ • RRF Fusion → Top 20               │   │
+│    └─────────────────────────────────────┘   │
+└───────────────────┬──────────────────────────┘
+                    │
+┌───────────────────▼──────────────────────────┐
+│ 4. Result Composition (result_composer.py)   │
+│                                               │
+│    Strategy: INTERLEAVE                       │
+│    • Alternates between Layla and Lily       │
+│    • Ensures balanced representation         │
+│                                               │
+│    Output:                                    │
+│    [Layla_msg1, Lily_msg1, Layla_msg2,       │
+│     Lily_msg2, ...]                           │
+│                                               │
+│    Result: 20 messages (10 each, interleaved)│
+└───────────────────┬──────────────────────────┘
+                    │
+┌───────────────────▼──────────────────────────┐
+│ 5. Answer Generation (answer_generator.py)   │
+│                                               │
+│    Format Context:                            │
+│    [1] Layla: "I prefer aisle seats..."      │
+│    [2] Lily: "I love window seats..."        │
+│    [3] Layla: "Tables near exit..."          │
+│    [4] Lily: "Window tables are best..."     │
+│    ...                                        │
+│                                               │
+│    LLM Call (Groq):                           │
+│    • Prompt: "Compare these two clients..."  │
+│    • Time: ~800ms                             │
+│                                               │
+│    Output:                                    │
+│    "**Layla** prefers aisle seating across   │
+│    all contexts, while **Lily** favors       │
+│    window seats. Their preferences are       │
+│    nearly opposite..."                        │
+└───────────────────┬──────────────────────────┘
+                    │
+┌───────────────────▼──────────────────────────┐
+│ 6. Return Response (qa_system.py)            │
+│                                               │
+│    {                                          │
+│      "answer": "Layla and Lily...",           │
+│      "sources": [20 messages],                │
+│      "query_plans": [                         │
+│        {sub-query 1 details},                 │
+│        {sub-query 2 details}                  │
+│      ],                                       │
+│      "composition_strategy": "INTERLEAVE",   │
+│      "route": "LOOKUP"                        │
+│    }                                          │
+└───────────────────┬──────────────────────────┘
+                    │
+                    ▼
+              User Response
+
+Total Time: ~2.8s (2 retrievals + composition)
+```
+
+---
+
+## Example 3: ANALYTICS Query
 
 **Query:** `"Which clients requested the SAME restaurants?"`
 
