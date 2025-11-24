@@ -157,10 +157,72 @@
             transform: scale(0.98);
         }
 
-        /* Responsive */
+        /* ==================== RESPONSIVE DESIGN ==================== */
+
+        /* Tablet - up to 768px */
         @media (max-width: 768px) {
             .content {
+                padding: 30px 24px;
+            }
+
+            .brand {
+                font-size: clamp(56px, 14vw, 100px);
+                padding: 8px 16px;
+            }
+
+            .hook {
+                font-size: clamp(20px, 4.5vw, 36px);
+                margin-bottom: 60px;
+            }
+
+            .hint {
+                font-size: 11px;
+                bottom: 30px;
+            }
+        }
+
+        /* Mobile - up to 480px */
+        @media (max-width: 480px) {
+            .content {
+                padding: 24px 20px;
+            }
+
+            .brand {
+                font-size: clamp(48px, 12vw, 70px);
+                margin-bottom: 32px;
+            }
+
+            .hook {
+                font-size: clamp(18px, 4vw, 28px);
+                margin-bottom: 50px;
+            }
+
+            .hint {
+                font-size: 10px;
+                bottom: 24px;
+                letter-spacing: 0.1em;
+            }
+        }
+
+        /* Landscape orientation */
+        @media (max-height: 600px) and (orientation: landscape) {
+            .content {
                 padding: 20px;
+            }
+
+            .brand {
+                font-size: clamp(40px, 10vw, 60px);
+                margin-bottom: 20px;
+            }
+
+            .hook {
+                font-size: clamp(16px, 3.5vw, 24px);
+                margin-bottom: 30px;
+            }
+
+            .hint {
+                bottom: 20px;
+                font-size: 10px;
             }
         }
     </style>

@@ -990,36 +990,289 @@
         /* Utilities */
         .hidden { display: none !important; }
 
-        /* Mobile Responsive */
+        /* ==================== RESPONSIVE DESIGN ==================== */
+
+        /* Tablet (Portrait) - 481px to 768px */
         @media (max-width: 768px) {
             .header {
-                padding: 15px 18px;
+                padding: 16px 20px;
             }
 
-            .logo-text h1 {
-                font-size: 22px;
+            .logo-title {
+                font-size: 20px;
             }
 
             .chat-container {
-                padding: 18px;
+                padding: 20px;
             }
 
             .message-content {
-                max-width: 82%;
+                max-width: 85%;
             }
 
             .suggestions-grid {
                 grid-template-columns: 1fr;
+                gap: 14px;
+            }
+
+            .welcome-title {
+                font-size: 36px;
+            }
+
+            .welcome-subtitle {
+                font-size: 16px;
+            }
+
+            .welcome-icon {
+                width: 70px;
+                height: 70px;
+            }
+
+            .welcome-icon svg {
+                width: 60px;
+                height: 60px;
+            }
+
+            .help-content {
+                padding: 28px;
+                max-width: 90%;
+            }
+
+            .help-header h3 {
+                font-size: 24px;
+            }
+        }
+
+        /* Mobile (Landscape) - up to 768px height */
+        @media (max-height: 600px) and (orientation: landscape) {
+            .welcome-screen {
+                padding: 20px 20px 60px;
+            }
+
+            .welcome-icon {
+                width: 50px;
+                height: 50px;
+                margin-bottom: 16px;
+            }
+
+            .welcome-icon svg {
+                width: 40px;
+                height: 40px;
+            }
+
+            .welcome-title {
+                font-size: 28px;
+                margin-bottom: 8px;
+            }
+
+            .welcome-subtitle {
+                font-size: 14px;
+                margin-bottom: 24px;
+            }
+
+            .suggestions-grid {
+                gap: 10px;
+            }
+
+            .suggestion-card {
+                padding: 12px 16px;
+            }
+
+            .help-content {
+                max-height: 90vh;
+                padding: 20px;
+            }
+        }
+
+        /* Mobile - up to 480px */
+        @media (max-width: 480px) {
+            .header {
+                padding: 14px 16px;
+            }
+
+            .logo-title {
+                font-size: 18px;
+            }
+
+            /* Larger touch targets for mobile */
+            .help-button, .github-button {
+                width: 40px;
+                height: 40px;
+                padding: 10px;
+            }
+
+            .help-button .material-icons {
+                font-size: 20px;
+            }
+
+            .chat-container {
+                padding: 16px;
+            }
+
+            .message-content {
+                max-width: 90%;
+            }
+
+            .message-avatar {
+                width: 34px;
+                height: 34px;
+            }
+
+            .message-bubble {
+                padding: 14px 18px;
+                font-size: 14px;
+            }
+
+            .suggestions-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .suggestion-card {
+                padding: 16px 18px;
+            }
+
+            .suggestion-card .title {
+                font-size: 13px;
+            }
+
+            .suggestion-card .example {
+                font-size: 14px;
+                padding: 16px;
+            }
+
+            .welcome-title {
+                font-size: 32px;
+            }
+
+            .welcome-subtitle {
+                font-size: 15px;
+                margin-bottom: 32px;
+            }
+
+            .welcome-icon {
+                width: 65px;
+                height: 65px;
+                margin-bottom: 20px;
+            }
+
+            .welcome-icon svg {
+                width: 50px;
+                height: 50px;
+            }
+
+            /* Input area improvements */
+            .input-area {
+                padding: 14px;
+                gap: 10px;
+            }
+
+            .input-wrapper input {
+                font-size: 15px;
+                padding: 14px 18px;
+            }
+
+            .send-button {
+                width: 44px;
+                height: 44px;
+                min-width: 44px;
+            }
+
+            /* Help modal mobile optimization */
+            .help-content {
+                padding: 24px;
+                max-width: 95%;
+                border-radius: 16px;
+            }
+
+            .help-header {
+                margin-bottom: 20px;
+                padding-bottom: 16px;
+            }
+
+            .help-header h3 {
+                font-size: 22px;
+            }
+
+            .help-section {
+                margin-bottom: 20px;
+            }
+
+            .help-section h4 {
+                font-size: 16px;
+                margin-bottom: 10px;
+            }
+
+            .help-section p {
+                font-size: 14px;
+            }
+
+            .help-example {
+                font-size: 13px;
+                padding: 12px 16px;
+            }
+        }
+
+        /* Small Mobile - up to 375px */
+        @media (max-width: 375px) {
+            .logo-title {
+                font-size: 16px;
             }
 
             .welcome-title {
                 font-size: 28px;
             }
 
-            .welcome-icon {
-                width: 75px;
-                height: 75px;
-                font-size: 36px;
+            .welcome-subtitle {
+                font-size: 14px;
+            }
+
+            .message-content {
+                max-width: 92%;
+            }
+
+            .help-content {
+                padding: 20px;
+            }
+        }
+
+        /* Tablet (Landscape) - 769px to 1024px */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .suggestions-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 16px;
+            }
+
+            .message-content {
+                max-width: 75%;
+            }
+        }
+
+        /* Touch device improvements */
+        @media (hover: none) and (pointer: coarse) {
+            /* Increase touch targets */
+            .help-button, .github-button {
+                min-width: 44px;
+                min-height: 44px;
+            }
+
+            .send-button {
+                min-width: 48px;
+                min-height: 48px;
+            }
+
+            .suggestion-card {
+                min-height: 60px;
+            }
+
+            /* Remove hover effects on touch devices */
+            .suggestion-card:hover {
+                transform: none;
+            }
+
+            /* Tap instead of hover */
+            .suggestion-card:active {
+                transform: scale(0.98);
             }
         }
 
