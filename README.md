@@ -248,6 +248,8 @@ Query: "Which clients requested the SAME restaurants?"
   ↓ Generate: "Osteria Francescana was requested by Sophia and Vikram (2 clients)"
 ```
 
+**For detailed step-by-step execution traces with code flow diagrams, see [ARCHITECTURE.md](./ARCHITECTURE.md)**
+
 ---
 
 ## Key Design Decisions
