@@ -2,112 +2,13 @@
 
 Detailed step-by-step walkthrough of query execution through the codebase.
 
-**Three Examples:**
-1. Simple LOOKUP: `"What are Sophia's dining preferences?"`
-2. LOOKUP with Decomposition: `"Compare Layla and Lily's seating preferences"`
-3. ANALYTICS: `"Which clients requested the SAME restaurants?"`
+**Two Examples:**
+1. LOOKUP with Decomposition: `"Compare Layla and Lily's seating preferences"`
+2. ANALYTICS: `"Which clients requested the SAME restaurants?"`
 
 ---
 
-## Example 1: Simple LOOKUP Query
-
-**Query:** `"What are Sophia's dining preferences?"`
-
-### Execution Trace
-
-```
-┌──────────────────────────────────────────────┐
-│ 1. API Entry (api.py)                        │
-│    POST /ask                                  │
-│    → qa_system.answer(query)                 │
-└───────────────────┬──────────────────────────┘
-                    │
-┌───────────────────▼──────────────────────────┐
-│ 2. Query Processing (query_processor.py)     │
-│                                               │
-│    Routing:                                   │
-│    • Detect: Member-specific query ✓         │
-│    • Route → LOOKUP                           │
-│                                               │
-│    Classification:                            │
-│    • Entity: "Sophia Al-Farsi"               │
-│    • Attribute: "dining" (specific)          │
-│    • Weights: {semantic: 1.0, bm25: 1.2,     │
-│                graph: 1.1}                    │
-└───────────────────┬──────────────────────────┘
-                    │
-┌───────────────────▼──────────────────────────┐
-│ 3. Hybrid Retrieval (hybrid_retriever.py)    │
-│                                               │
-│    User Detection:                            │
-│    • "Sophia" → User ID: cd3a350e...         │
-│                                               │
-│    Parallel Retrieval:                        │
-│    ┌─────────────────────────────────┐       │
-│    │ Semantic (Qdrant)               │       │
-│    │ • Embed query → 384-dim vector  │       │
-│    │ • Search with user filter       │       │
-│    │ • Returns: 20 messages          │       │
-│    │ • Time: ~50ms                   │       │
-│    └─────────────────────────────────┘       │
-│    ┌─────────────────────────────────┐       │
-│    │ BM25 (Keywords)                 │       │
-│    │ • Tokenize: ["sophia","dining"] │       │
-│    │ • TF-IDF scoring                │       │
-│    │ • Returns: 20 messages          │       │
-│    │ • Time: ~20ms                   │       │
-│    └─────────────────────────────────┘       │
-│    ┌─────────────────────────────────┐       │
-│    │ Graph (NetworkX)                │       │
-│    │ • Find Sophia → PREFERS edges   │       │
-│    │ • Returns: 10 messages          │       │
-│    │ • Time: ~30ms                   │       │
-│    └─────────────────────────────────┘       │
-│                                               │
-│    RRF Fusion:                                │
-│    • Combine 3 result sets                    │
-│    • Apply weights from step 2                │
-│    • Multi-method messages rank higher        │
-│    • Returns: Top 20 messages (ranked)        │
-└───────────────────┬──────────────────────────┘
-                    │
-┌───────────────────▼──────────────────────────┐
-│ 4. Answer Generation (answer_generator.py)   │
-│                                               │
-│    Format Context:                            │
-│    • Select top 5 messages                    │
-│    • Format as numbered list                  │
-│                                               │
-│    LLM Call (Groq):                           │
-│    • Model: llama-3.3-70b-versatile          │
-│    • Prompt: Question + Context               │
-│    • Temperature: 0.3                         │
-│    • Time: ~600ms                             │
-│                                               │
-│    Output:                                    │
-│    "**Sophia Al-Farsi** has a strong         │
-│    preference for Italian cuisine..."         │
-└───────────────────┬──────────────────────────┘
-                    │
-┌───────────────────▼──────────────────────────┐
-│ 5. Return Response (qa_system.py)            │
-│                                               │
-│    {                                          │
-│      "answer": "Sophia prefers...",           │
-│      "sources": [20 messages],                │
-│      "route": "LOOKUP"                        │
-│    }                                          │
-└───────────────────┬──────────────────────────┘
-                    │
-                    ▼
-              User Response
-
-Total Time: ~1.8s
-```
-
----
-
-## Example 2: LOOKUP with Decomposition
+## Example 1: LOOKUP with Decomposition
 
 **Query:** `"Compare Layla and Lily's seating preferences"`
 
@@ -220,7 +121,7 @@ Total Time: ~2.8s (2 retrievals + composition)
 
 ---
 
-## Example 3: ANALYTICS Query
+## Example 2: ANALYTICS Query
 
 **Query:** `"Which clients requested the SAME restaurants?"`
 
