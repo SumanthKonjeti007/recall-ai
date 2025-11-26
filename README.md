@@ -12,6 +12,24 @@ A modular Retrieval-Augmented Generation (RAG) system designed with extensibilit
 
 ---
 
+## 🚀 Live Demo
+
+**Try it now:** [https://web-production-60884.up.railway.app/](https://web-production-60884.up.railway.app/)
+
+**API Documentation:** [https://web-production-60884.up.railway.app/docs](https://web-production-60884.up.railway.app/docs)
+
+### Screenshots
+
+#### Query Interface
+![Query Interface](docs/screenshots/ui-main.jpg)
+*Clean, modern interface with quick action buttons for common query types*
+
+#### Sample Queries & Responses
+![Sample Responses](docs/screenshots/ui-queries.jpg)
+*Top: LOOKUP query showing detailed member preferences | Bottom: ANALYTICS query with grouped aggregation results*
+
+---
+
 ## Project Vision
 
 The goal of this project is to develop a reusable RAG architecture that can be adapted to different data domains with minimal reconfiguration. Rather than building a single-purpose question-answering system, the focus is on creating modular components that abstract away domain-specific logic, enabling the framework to serve as a foundation for various retrieval and analytics use cases.
