@@ -181,13 +181,13 @@ The system uses a **dual-path architecture** where queries are intelligently rou
                 ▼                         ▼
         ┌───────────────┐         ┌──────────────┐
         │  LOOKUP Path  │         │ ANALYTICS    │
-        │      (RAG)     │         │     Path     │
-        └───────┬────────┘         └──────┬───────┘
-                │                         │
-                │    ┌──────────┐         │
-                └───→│   LLM    │←────────┘
-                     │ Response │
-                     └──────────┘
+        │      (RAG)    │         │     Path     │
+        └───────┬───────┘         └──────┬───────┘
+                │                        │
+                │    ┌─────────┐         │
+                └───→│   LLM   │←────────┘
+                     │ Response│
+                     └─────────┘
 ```
 
 ---
