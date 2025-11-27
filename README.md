@@ -8,8 +8,6 @@ A modular Retrieval-Augmented Generation (RAG) system designed with extensibilit
 [![Qdrant](https://img.shields.io/badge/Vector%20DB-Qdrant-red)](https://qdrant.tech/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Repository:** [https://github.com/SumanthKonjeti007/recall-ai](https://github.com/SumanthKonjeti007/recall-ai)
-
 ---
 
 ## 🚀 Live Demo
@@ -17,6 +15,14 @@ A modular Retrieval-Augmented Generation (RAG) system designed with extensibilit
 **Try it now:** [https://web-production-60884.up.railway.app/](https://web-production-60884.up.railway.app/)
 
 **API Documentation:** [https://web-production-60884.up.railway.app/docs](https://web-production-60884.up.railway.app/docs)
+
+**Try these sample queries:**
+- `"What are Sophia's dining preferences?"`
+- `"When is Vikram traveling to Tokyo?"`
+- `"Which clients requested the same restaurants?"`
+- `"Compare Layla and Lily's seating preferences"`
+
+*(See [Datastore Overview](#datastore-overview) for full list of members and available data)*
 
 ### Screenshots
 
@@ -114,6 +120,8 @@ Sources: Message #34, Message #67
 
 The system operates on a message-based dataset containing member communication, preferences, and service requests.
 
+**Data Location:** [`data/raw_messages.json`](data/raw_messages.json)
+
 **Data Structure:**
 ```json
 {
@@ -126,9 +134,22 @@ The system operates on a message-based dataset containing member communication, 
 ```
 
 **Dataset Scale:**
-- 500+ messages across 50+ members
+- 500+ messages across 10 members
 - 6 months of communication history
 - Covers travel, dining, events, and service requests
+
+**Members in Dataset:**
+The system contains data for these members (try asking questions about any of them):
+- Sophia Al-Farsi
+- Layla Kawaguchi
+- Vikram Desai
+- Thiago Monteiro
+- Hans Müller
+- Lily O'Sullivan
+- Armand Dupont
+- Fatima El-Tahir
+- Lorenzo Cavalli
+- Amina Van Den Berg
 
 **Preprocessing:**
 
